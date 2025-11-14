@@ -126,7 +126,12 @@ fn main() {
     // up-to-date report on specific accounts
     println!("client,available,held,total,locked");
     for account in accounts.values() {
-        println!("{},{},{},{},{}",
+
+        // NOTE: we are only displaying 4 decimal places, but we should actually only _hold_ four
+        // decimal places in memory, as well. We should use a more appropriate data type for this,
+        // rather than f32.
+
+        println!("{},{:.4},{:.4},{:.4},{}",
                  account.id,
                  account.available,
                  account.held,
