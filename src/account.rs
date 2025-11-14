@@ -22,7 +22,6 @@ impl Account {
     ) -> Result<(), &str> {
         match tx.kind {
             TransactionType::Deposit => {
-                // TODO in a DB scenario, everything here must be a single transaction
                 self.available += tx.amount;
                 Ok(())
             }
@@ -31,10 +30,18 @@ impl Account {
                     self.available -= tx.amount;
                     Ok(())
                 } else {
-                    // TODO this should fail "nicely"
                     Err("insufficient funds")
                 }
             }
+
+            // NOTE: for all TransactionTypes below, in the case where processed_transactions.get()
+            // returns None, it's possible that a valid out-of-order scenario has occurred. These
+            // kinds of scenarios should be handled if / when appropriate.
+            //
+            // However, the instructions say: "If the tx specified by the dispute doesn't exist you
+            // can ignore it and assume this is an error on our partners side." So that's what I'll
+            // do.
+
             TransactionType::Dispute => {
 
                 // 1. find disputed transaction
@@ -43,12 +50,6 @@ impl Account {
 
                 match processed_transactions.get(&tx.tx) {
                     None => {
-
-                        // "If the tx specified by the dispute doesn't exist you can ignore it and
-                        // assume this is an error on our partners side."
-
-                        // NOTE: it's _possible_ in a distributed / multithreaded environment, that
-                        // this is an out-of-order scenario. Handle this if / when appropriate.
                         Err("attempt to dispute unknown transaction")
                     }
                     Some(disputed) => {
@@ -80,12 +81,6 @@ impl Account {
 
                 match processed_transactions.get(&tx.tx) {
                     None => {
-
-                        // "If the tx specified by the dispute doesn't exist you can ignore it and
-                        // assume this is an error on our partners side."
-
-                        // NOTE: it's _possible_ in a distributed / multithreaded environment, that
-                        // this is an out-of-order scenario. Handle this if / when appropriate.
                         Err("attempt to resolve unknown disputed transaction")
                     }
                     Some(disputed) => {
@@ -118,12 +113,6 @@ impl Account {
 
                 match processed_transactions.get(&tx.tx) {
                     None => {
-
-                        // "If the tx specified by the dispute doesn't exist you can ignore it and
-                        // assume this is an error on our partners side."
-
-                        // NOTE: it's _possible_ in a distributed / multithreaded environment, that
-                        // this is an out-of-order scenario. Handle this if / when appropriate.
                         Err("attempt to resolve unknown disputed transaction")
                     }
                     Some(chargeback) => {

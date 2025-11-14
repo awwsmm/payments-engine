@@ -10,14 +10,14 @@ fn main() {
 
     let reader = csv::ReaderBuilder::new()
         .trim(csv::Trim::All) // trim all whitespace
-        .has_headers(true) // file has a header row
+        .has_headers(true) // we are told that the file has a header row
         .from_path(filename);
 
     let mut reader = match reader {
         Ok(reader) => reader,
         Err(error) => {
             // in the "thousands of concurrent connections" scenario
-            // this should not panic, but instead write an error to a logfile
+            // this should not panic, but instead write an error to a logfile and process the next file
             panic!("error reading file: {}", error)
         }
     };
@@ -29,14 +29,34 @@ fn main() {
     let mut processed_transactions: HashMap<u32, Transaction> = HashMap::new();
 
     for result in reader.deserialize() {
-        let tx: Transaction = result.expect("could not parse line");
+
+        // parse the lines of the CSV as Transactions
+        let tx: Transaction = match result {
+            Err(error) => {
+                // skip invalid lines, do not crash the entire program
+                eprintln!("could not parse CSV line as Transaction, skipping: {}", error);
+                continue
+            }
+            Ok(tx) => tx,
+        };
+
         match accounts.get_mut(&tx.client) {
+            Some(account) => {
+                if let Err(message) = account.apply(&tx, &processed_transactions) {
+                    // there was an error applying the transactions, e.g. insufficient funds
+                    eprintln!("{}", message)
+                }
+
+                // Regardless of whether the transaction application was successful, we mark the
+                // transaction as processed. If the application crashes, we want to know the last
+                // transaction we processed and start from there, to avoid double-processing.
+                processed_transactions.insert(tx.tx, tx);
+            }
             None => {
-                // if there is no account, but we are trying to apply a transaction to it...
-                // handle each transaction appropriately
                 match tx.kind {
                     TransactionType::Deposit => {
-                        // TODO in a DB scenario, everything here must be a single transaction
+                        // If no Account exists, but we are making a deposit to it, create a new account
+                        // TODO in a DB scenario, everything here must be a single (atomic) transaction
                         let account = Account {
                             id: tx.client,
                             available: tx.amount,
@@ -44,50 +64,36 @@ fn main() {
                             locked: false,
                         };
                         accounts.insert(tx.client, account);
-                        processed_transactions.insert(tx.tx, tx);
                     }
                     TransactionType::Withdrawal => {
-                        // TODO this should fail "nicely"
-                        processed_transactions.insert(tx.tx, tx);
-                        // NOTE: it's _possible_ in a distributed / multithreaded environment, that
-                        // this is an out-of-order scenario. Handle this if / when appropriate.
-                        eprintln!("cannot withdraw from a new account");
+
+                        // NOTE: in this and all below cases, it's _possible_ that, in a distributed
+                        // or multithreaded environment, that this is a valid out-of-order scenario.
+                        // This should be handled if and when appropriate by moving "invalid"
+                        // transactions into a retry queue, and handling as appropriate.
+
+                        eprintln!("cannot withdraw from a new account (id: {})", tx.client);
                     }
                     TransactionType::Dispute => {
-                        // TODO this should fail "nicely"
-                        processed_transactions.insert(tx.tx, tx);
-
-                        // NOTE: it's _possible_ in a distributed / multithreaded environment, that
-                        // this is an out-of-order scenario. Handle this if / when appropriate.
-                        eprintln!("cannot dispute a transaction for a new account");
+                        eprintln!("cannot dispute a transaction for a new account (id: {})", tx.client);
                     }
                     TransactionType::Resolve => {
-                        // TODO this should fail "nicely"
-                        processed_transactions.insert(tx.tx, tx);
-
-                        // NOTE: it's _possible_ in a distributed / multithreaded environment, that
-                        // this is an out-of-order scenario. Handle this if / when appropriate.
-                        eprintln!("cannot resolve a disputed transaction for a new account");
+                        eprintln!("cannot resolve a disputed transaction for a new account (id: {})", tx.client);
                     }
                     TransactionType::Chargeback => {
-                        // TODO this should fail "nicely"
-                        processed_transactions.insert(tx.tx, tx);
-
-                        // NOTE: it's _possible_ in a distributed / multithreaded environment, that
-                        // this is an out-of-order scenario. Handle this if / when appropriate.
-                        eprintln!("cannot chargeback a disputed transaction for a new account");
+                        eprintln!("cannot chargeback a disputed transaction for a new account (id: {})", tx.client);
                     }
                 }
-            }
-            Some(account) => {
-                if let Err(message) = account.apply(&tx, &processed_transactions) {
-                    eprintln!("{}", message)
-                }
+
+                // again, in all cases, we mark these transactions as processed after we've handled them
                 processed_transactions.insert(tx.tx, tx);
             }
         }
     }
 
+    // in the "thousands of concurrent connections" scenario
+    // this should not write to stdout; we should instead expose an endpoint which allows for an
+    // up-to-date report on specific accounts
     println!("client,available,held,total,locked");
     for account in accounts.values() {
         println!("{},{},{},{},{}",

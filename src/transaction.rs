@@ -12,11 +12,20 @@ pub(crate) enum TransactionType {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct Transaction {
-    // note, there are a few ways around the below, we could also use a raw identifier like r#type
+    // "type" is a reserved word in Rust, so we have to rename this field
+    // we could also use a raw identifier like r#type
     #[serde(rename = "type")]
     pub(crate) kind: TransactionType,
+
+    // Above, we deserialize directly to a list of known transaction types. The effect of this is
+    // that lines with unknown "type"s are simply discarded and not processed at all. An alternative
+    // approach would be to deserialize "kind" as a String and simply ignore the transaction,
+    // writing to a log that we have an unknown "type". This might be the preferred approach if, for
+    // example, auditability is a concern.
+
     pub(crate) client: u16, // client / account ID
     pub(crate) tx: u32, // transaction ID
+
     // TODO amount must be positive -- this is very, very important
     pub(crate) amount: f32, // TODO consider using the 'rust_decimal' crate for money
 }
