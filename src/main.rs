@@ -1,9 +1,19 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Type {
+    Deposit,
+    Withdrawal,
+    Dispute,
+    Resolve,
+    Chargeback,
+}
+
+#[derive(Debug, Deserialize)]
 struct Transaction {
     // note, there are a few ways around the below, we could also use a raw identifier like r#type
-    #[serde(rename = "type")] kind: String,
+    #[serde(rename = "type")] kind: Type,
     client: u16,
     tx: u32,
     amount: f32, // TODO replace this with a proper currency type
