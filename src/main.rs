@@ -37,7 +37,6 @@ impl Account {
 
 fn main() {
     let filename = std::env::args_os().nth(1).expect("missing file argument");
-    println!("attempting to read file: {:?}", filename);
 
     let reader = csv::ReaderBuilder::new()
         .trim(csv::Trim::All) // trim all whitespace
@@ -61,7 +60,6 @@ fn main() {
 
     for result in reader.deserialize() {
         let transaction: Transaction = result.expect("could not parse line");
-        println!("{:?}", transaction);
 
         // handle each transaction appropriately
         match transaction.kind {
@@ -256,7 +254,16 @@ fn main() {
                 }
             }
         }
+    }
 
-        println!("accounts: {:?}", accounts)
+    println!("client,available,held,total,locked");
+    for account in accounts.values() {
+        println!("{},{},{},{},{}",
+                 account.id,
+                 account.available,
+                 account.held,
+                 account.total(),
+                 account.locked,
+        )
     }
 }
