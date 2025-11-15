@@ -22,9 +22,8 @@ pub(crate) struct Transaction {
     // approach would be to deserialize "kind" as a String and simply ignore the transaction,
     // writing to a log that we have an unknown "type". This might be the preferred approach if, for
     // example, auditability is a concern.
-
     pub(crate) client: u16, // client / account ID
-    pub(crate) tx: u32, // transaction ID
+    pub(crate) tx: u32,     // transaction ID
 
     // TODO amount must be positive -- this is very, very important
     // Option because amount will not be present for Dispute, Resolve, Chargeback

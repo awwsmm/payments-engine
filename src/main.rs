@@ -1,12 +1,11 @@
-mod transaction;
 mod account;
+mod transaction;
 
 use crate::account::Account;
 use crate::transaction::{Transaction, TransactionType};
 use std::collections::HashMap;
 
 fn main() {
-
     // Take only the first argument, ignore all others.
     // This could be extended to process any number of files.
     let filename = std::env::args_os().nth(1).expect("missing file argument");
@@ -50,13 +49,15 @@ fn main() {
     //      - this is good for DB locking, only one thread is requesting that client's row in the DB
 
     for result in reader.deserialize() {
-
         // parse the lines of the CSV as Transactions
         let tx: Transaction = match result {
             Err(error) => {
                 // skip invalid lines, do not crash the entire program
-                eprintln!("could not parse CSV line as Transaction, skipping: {}", error);
-                continue
+                eprintln!(
+                    "could not parse CSV line as Transaction, skipping: {}",
+                    error
+                );
+                continue;
             }
             Ok(tx) => tx,
         };
@@ -68,7 +69,7 @@ fn main() {
             match tx.kind {
                 TransactionType::Deposit | TransactionType::Withdrawal => {
                     eprintln!("transaction {} has already been processed", tx.tx);
-                    continue
+                    continue;
                 }
                 _ => {}
             }
@@ -76,8 +77,11 @@ fn main() {
 
         // if the transaction amount exists and is negative, refuse to process and throw an error
         if tx.amount.map_or(false, |amt| amt < 0.0) {
-            eprintln!("transaction {} has a negative 'amount' and will not be processed", tx.tx);
-            continue
+            eprintln!(
+                "transaction {} has a negative 'amount' and will not be processed",
+                tx.tx
+            );
+            continue;
         }
 
         match accounts.get_mut(&tx.client) {
@@ -106,7 +110,6 @@ fn main() {
                         accounts.insert(tx.client, account);
                     }
                     TransactionType::Withdrawal => {
-
                         // NOTE: in this and all below cases, it's _possible_ that, in a distributed
                         // or multithreaded environment, that this is a valid out-of-order scenario.
                         // This should be handled if and when appropriate by moving "invalid"
@@ -115,13 +118,22 @@ fn main() {
                         eprintln!("cannot withdraw from a new account (id: {})", tx.client);
                     }
                     TransactionType::Dispute => {
-                        eprintln!("cannot dispute a transaction for a new account (id: {})", tx.client);
+                        eprintln!(
+                            "cannot dispute a transaction for a new account (id: {})",
+                            tx.client
+                        );
                     }
                     TransactionType::Resolve => {
-                        eprintln!("cannot resolve a disputed transaction for a new account (id: {})", tx.client);
+                        eprintln!(
+                            "cannot resolve a disputed transaction for a new account (id: {})",
+                            tx.client
+                        );
                     }
                     TransactionType::Chargeback => {
-                        eprintln!("cannot chargeback a disputed transaction for a new account (id: {})", tx.client);
+                        eprintln!(
+                            "cannot chargeback a disputed transaction for a new account (id: {})",
+                            tx.client
+                        );
                     }
                 }
 
@@ -136,17 +148,17 @@ fn main() {
     // up-to-date report on specific accounts
     println!("client,available,held,total,locked");
     for account in accounts.values() {
-
         // NOTE: we are only displaying 4 decimal places, but we should actually only _hold_ four
         // decimal places in memory, as well. We should use a more appropriate data type for this,
         // rather than f32.
 
-        println!("{},{:.4},{:.4},{:.4},{}",
-                 account.id,
-                 account.available,
-                 account.held,
-                 account.total(),
-                 account.locked,
+        println!(
+            "{},{:.4},{:.4},{:.4},{}",
+            account.id,
+            account.available,
+            account.held,
+            account.total(),
+            account.locked,
         )
     }
 }

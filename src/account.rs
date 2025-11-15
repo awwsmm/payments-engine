@@ -5,12 +5,11 @@ use std::collections::HashMap;
 pub(crate) struct Account {
     pub(crate) id: u16,
     pub(crate) available: f32, // TODO consider using the 'rust_decimal' crate for money
-    pub(crate) held: f32,  // TODO consider using the 'rust_decimal' crate for money
+    pub(crate) held: f32,      // TODO consider using the 'rust_decimal' crate for money
     pub(crate) locked: bool,
 }
 
 impl Account {
-
     // Rather than storing this in the Account as well, compute it on the fly. If this becomes a
     // bottleneck (if we're computing `total` a lot), consider keeping `total` in memory and using
     // it to calculate `available` or `held` instead.
@@ -46,19 +45,14 @@ impl Account {
             // However, the instructions say: "If the tx specified by the dispute doesn't exist you
             // can ignore it and assume this is an error on our partners side." So that's what I'll
             // do.
-
             TransactionType::Dispute => {
-
                 // 1. find disputed transaction
                 // 2. drop available balance by that amount (what to do if insufficient funds?)
                 // 3. increase held funds by that amount (what to do if insufficient funds?)
 
                 match processed_transactions.get(&tx.tx) {
-                    None => {
-                        Err("attempt to dispute unknown transaction")
-                    }
+                    None => Err("attempt to dispute unknown transaction"),
                     Some(disputed) => {
-
                         // disputed transactions _should_ only ever be Deposits / Withdrawals, which _should_ have amounts
                         let disputed_amount = disputed.amount.unwrap_or(0.0);
 
@@ -85,17 +79,13 @@ impl Account {
                 }
             }
             TransactionType::Resolve => {
-
                 // 1. find resolved transaction
                 // 2. increase available balance by that amount
                 // 3. decrease held funds by that amount (what to do if insufficient funds?)
 
                 match processed_transactions.get(&tx.tx) {
-                    None => {
-                        Err("attempt to resolve unknown disputed transaction")
-                    }
+                    None => Err("attempt to resolve unknown disputed transaction"),
                     Some(disputed) => {
-
                         // disputed transactions _should_ only ever be Deposits / Withdrawals, which _should_ have amounts
                         let disputed_amount = disputed.amount.unwrap_or(0.0);
 
@@ -123,17 +113,13 @@ impl Account {
                 }
             }
             TransactionType::Chargeback => {
-
                 // 1. find chargeback transaction
                 // 2. decrease held balance by that amount
                 // 3. freeze the client's account
 
                 match processed_transactions.get(&tx.tx) {
-                    None => {
-                        Err("attempt to resolve unknown disputed transaction")
-                    }
+                    None => Err("attempt to resolve unknown disputed transaction"),
                     Some(disputed) => {
-
                         // FIXME the docs are not clear here if the transaction ID that a Chargeback
                         //   holds is the ID of the Dispute or of the original Withdrawal / Deposit.
                         //   (i.e. do we need to do "one hop" or "two hops" to get the amount back)
