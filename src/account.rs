@@ -10,6 +10,10 @@ pub(crate) struct Account {
 }
 
 impl Account {
+
+    // Rather than storing this in the Account as well, compute it on the fly. If this becomes a
+    // bottleneck (if we're computing `total` a lot), consider keeping `total` in memory and using
+    // it to calculate `available` or `held` instead.
     pub(crate) fn total(&self) -> f32 {
         self.available + self.held
     }
@@ -22,12 +26,13 @@ impl Account {
     ) -> Result<(), &str> {
         match tx.kind {
             TransactionType::Deposit => {
-                self.available += tx.amount;
+                self.available += tx.amount.unwrap_or(0.0); // Deposits _should_ always have amounts
                 Ok(())
             }
             TransactionType::Withdrawal => {
-                if self.available >= tx.amount {
-                    self.available -= tx.amount;
+                let tx_amount = tx.amount.unwrap_or(0.0); // Withdrawals _should_ always have amounts
+                if self.available >= tx_amount {
+                    self.available -= tx_amount;
                     Ok(())
                 } else {
                     Err("insufficient funds")
@@ -53,9 +58,15 @@ impl Account {
                         Err("attempt to dispute unknown transaction")
                     }
                     Some(disputed) => {
-                        if self.available >= disputed.amount {
-                            self.available -= disputed.amount;
-                            self.held += disputed.amount;
+
+                        // disputed transactions _should_ only ever be Deposits / Withdrawals, which _should_ have amounts
+                        let disputed_amount = disputed.amount.unwrap_or(0.0);
+
+                        // TODO log a warning if there was an attempt to dispute anything other than a Deposit / Withdrawal
+
+                        if self.available >= disputed_amount {
+                            self.available -= disputed_amount;
+                            self.held += disputed_amount;
                             Ok(())
                         } else {
                             // if disputed amount is greater than user's available balance,
@@ -84,9 +95,15 @@ impl Account {
                         Err("attempt to resolve unknown disputed transaction")
                     }
                     Some(disputed) => {
-                        if self.held >= disputed.amount {
-                            self.available += disputed.amount;
-                            self.held -= disputed.amount;
+
+                        // disputed transactions _should_ only ever be Deposits / Withdrawals, which _should_ have amounts
+                        let disputed_amount = disputed.amount.unwrap_or(0.0);
+
+                        // TODO log a warning if there was an attempt to dispute anything other than a Deposit / Withdrawal
+
+                        if self.held >= disputed_amount {
+                            self.available += disputed_amount;
+                            self.held -= disputed_amount;
                             Ok(())
                         } else {
                             // if resolved amount is greater than user's held balance,
@@ -115,9 +132,23 @@ impl Account {
                     None => {
                         Err("attempt to resolve unknown disputed transaction")
                     }
-                    Some(chargeback) => {
-                        if self.held >= chargeback.amount {
-                            self.held -= chargeback.amount;
+                    Some(disputed) => {
+
+                        // FIXME the docs are not clear here if the transaction ID that a Chargeback
+                        //   holds is the ID of the Dispute or of the original Withdrawal / Deposit.
+                        //   (i.e. do we need to do "one hop" or "two hops" to get the amount back)
+                        //   Resolve specifically says "a transaction that was under dispute by ID"
+                        //   I'm assuming that it's the original Withdrawal / Deposit, containing
+                        //   the original amount.
+
+                        // disputed transactions _should_ only ever be Deposits / Withdrawals, which _should_ have amounts
+                        let disputed_amount = disputed.amount.unwrap_or(0.0);
+
+                        // TODO log a warning if there was an attempt to dispute anything other than a Deposit / Withdrawal
+
+                        if self.held >= disputed_amount {
+                            self.held -= disputed_amount;
+                            self.locked = true;
                             Ok(())
                         } else {
                             // if chargeback amount is greater than user's held balance,
@@ -129,6 +160,7 @@ impl Account {
 
                             // NOTE this assumes all monetary amounts are positive
                             self.held = 0.0;
+                            self.locked = true;
                             Ok(())
                         }
                     }

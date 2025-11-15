@@ -6,6 +6,9 @@ use crate::transaction::{Transaction, TransactionType};
 use std::collections::HashMap;
 
 fn main() {
+
+    // Take only the first argument, ignore all others.
+    // This could be extended to process any number of files.
     let filename = std::env::args_os().nth(1).expect("missing file argument");
 
     let reader = csv::ReaderBuilder::new()
@@ -58,14 +61,21 @@ fn main() {
             Ok(tx) => tx,
         };
 
-        // if we have a duplicate transaction ID, refuse to process and throw an error
+        // If we have a duplicate transaction ID, refuse to process and throw an error.
+        // NOTE: this only applies for Deposits and Withdrawals, because the 'tx' held by a Dispute,
+        // a Resolve, or a Chargeback refers to a previous transaction, purposefully.
         if processed_transactions.contains_key(&tx.tx) {
-            eprintln!("transaction {} has already been processed", tx.tx);
-            continue
+            match tx.kind {
+                TransactionType::Deposit | TransactionType::Withdrawal => {
+                    eprintln!("transaction {} has already been processed", tx.tx);
+                    continue
+                }
+                _ => {}
+            }
         }
 
-        // if the transaction amount is negative, refuse to process and throw an error
-        if tx.amount < 0.0 {
+        // if the transaction amount exists and is negative, refuse to process and throw an error
+        if tx.amount.map_or(false, |amt| amt < 0.0) {
             eprintln!("transaction {} has a negative 'amount' and will not be processed", tx.tx);
             continue
         }
@@ -89,7 +99,7 @@ fn main() {
                         // TODO in a DB scenario, everything here must be a single (atomic) transaction
                         let account = Account {
                             id: tx.client,
-                            available: tx.amount,
+                            available: tx.amount.unwrap_or(0.0), // Deposits _should_ always have an amount
                             held: 0.0,
                             locked: false,
                         };

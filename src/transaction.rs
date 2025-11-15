@@ -27,5 +27,6 @@ pub(crate) struct Transaction {
     pub(crate) tx: u32, // transaction ID
 
     // TODO amount must be positive -- this is very, very important
-    pub(crate) amount: f32, // TODO consider using the 'rust_decimal' crate for money
+    // Option because amount will not be present for Dispute, Resolve, Chargeback
+    pub(crate) amount: Option<f32>, // TODO consider using the 'rust_decimal' crate for money
 }
